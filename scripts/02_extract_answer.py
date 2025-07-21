@@ -52,7 +52,7 @@ Model completion:
 {completion_text}
 """
 
-    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     
     response = model.generate_content(
         prompt,
