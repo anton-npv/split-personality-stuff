@@ -1,0 +1,27 @@
+# Dataset configuration registry
+# Each dataset needs: root path, download URL, and parser function
+
+mmlu:
+  root: data/mmlu
+  url: https://huggingface.co/datasets/cais/mmlu/resolve/main/data/{split}.csv
+  parser: datasets.mmlu.parse_raw
+  description: "Massive Multitask Language Understanding benchmark"
+  splits: [dev, test, train]
+  default_split: dev
+
+gpqa:  
+  root: data/gpqa
+  url: https://huggingface.co/datasets/Idavidrein/gpqa/resolve/main/gpqa_main.csv
+  parser: datasets.gpqa.parse_raw  
+  description: "Graduate-level physics, chemistry, biology questions"
+  splits: [main]
+  default_split: main
+
+# Template for adding new datasets:
+# new_dataset:
+#   root: data/new_dataset
+#   url: https://example.com/dataset.zip
+#   parser: datasets.new_dataset.parse_raw
+#   description: "Description of the dataset"
+#   splits: [train, dev, test]  
+#   default_split: dev
