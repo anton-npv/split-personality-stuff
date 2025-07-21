@@ -5,6 +5,7 @@ from .base import LLMClient
 from .anthropic_client import AnthropicClient
 from .openai_client import OpenAIClient
 from .google_client import GoogleClient
+from .featherless_client import FeatherlessClient
 
 
 def create_client(provider: str, model_id: str, **config) -> LLMClient:
@@ -14,6 +15,7 @@ def create_client(provider: str, model_id: str, **config) -> LLMClient:
         "anthropic": AnthropicClient,
         "openai": OpenAIClient,
         "google": GoogleClient,
+        "featherless": FeatherlessClient,
     }
     
     if provider not in provider_map:

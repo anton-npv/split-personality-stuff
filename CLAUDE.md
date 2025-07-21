@@ -140,6 +140,11 @@ Always use: "Think step-by-step to solve the problem. After your reasoning, writ
 - Thin wrappers in `src/clients/` for each provider
 - Support temperature=0 for reproducible results
 - Handle rate limiting and retries
+- Supported providers:
+  - Anthropic (Claude models)
+  - OpenAI (GPT models)
+  - Google (Gemini models)
+  - Featherless AI (Llama, DeepSeek, Qwen, etc. via OpenAI-compatible API)
 
 ### Answer Extraction
 Use Gemini with structured JSON output to parse final letters from completions. Critical for accuracy.
