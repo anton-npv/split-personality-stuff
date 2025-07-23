@@ -1,0 +1,19 @@
+# Additional requirements for local model inference
+# Install with: pip install -r requirements-local.txt
+
+# Core local inference dependencies
+torch>=2.0.0
+transformers>=4.36.0
+accelerate>=0.25.0
+
+# Quantization support (optional but recommended for memory efficiency)
+bitsandbytes>=0.42.0
+
+# For faster tokenizers
+tokenizers>=0.15.0
+
+# CUDA-specific optimizations (install if using NVIDIA GPUs)
+# flash-attn>=2.0.0  # Uncomment for faster attention (requires CUDA)
+
+# Note: These dependencies are in addition to the base requirements.txt
+# For quantization support, ensure you have a CUDA-compatible GPU
