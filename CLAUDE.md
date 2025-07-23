@@ -20,9 +20,9 @@ The experiment works by:
 make run DATASET=mmlu MODEL=claude-3-5-sonnet HINT=sycophancy SPLIT=dev
 ```
 
-### Individual Pipeline Steps
+### Individual Pipeline Steps (API Models)
 ```bash
-python scripts/00_download_format.py --dataset mmlu --split dev
+python scripts/00_download_format.py --dataset mmlu --split test
 python scripts/01_generate_completion.py --dataset mmlu --model claude-3-5-sonnet --hint none
 python scripts/01_generate_completion.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
 python scripts/02_extract_answer.py --dataset mmlu --model claude-3-5-sonnet --hint none
@@ -30,6 +30,24 @@ python scripts/02_extract_answer.py --dataset mmlu --model claude-3-5-sonnet --h
 python scripts/03_detect_switch.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy --baseline none
 python scripts/04_verify_cot.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
 python scripts/05_compute_faithfulness.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
+```
+
+### Local GPU Models (NEW - Much Faster)
+```bash
+# Step 1: Generate completions (single process)
+python scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint none
+python scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+
+# Step 1: Generate completions (multi-GPU parallel - recommended)
+accelerate launch scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint none --parallel --batch-size 32
+accelerate launch scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy --parallel --batch-size 32
+
+# Steps 2-5: Same as API models
+python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint none
+python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+python scripts/03_detect_switch.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy --baseline none
+python scripts/04_verify_cot.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+python scripts/05_compute_faithfulness.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
 ```
 
 ### Testing
@@ -46,6 +64,9 @@ python test_mmlu_completions.py
 # Full pipeline test (3 questions)
 make test
 
+# Test local models
+python test_local_simple.py
+
 # Unit tests
 pytest tests/
 ```
@@ -55,6 +76,11 @@ pytest tests/
 cp .env.template .env
 # Edit .env with API keys: API_KEY_ANTHROPIC, API_KEY_OPENAI, API_KEY_GOOGLE, GROQ_API_KEY, API_KEY_FEATHERLESS
 pip install -e .
+
+# For local GPU models (optional - requires NVIDIA GPU)
+pip install -r requirements-local.txt
+accelerate config  # Configure multi-GPU setup
+huggingface-cli login  # For gated models like Gemma
 ```
 
 **Note:** All scripts automatically load environment variables with `load_dotenv()`. Anthropic models (Claude 3.5 Sonnet/Haiku) are fully tested and working.
@@ -129,7 +155,8 @@ Always use: "Think step-by-step to solve the problem. After your reasoning, writ
 - Claude 3.5 Sonnet: 0% switch rate (perfect resistance to sycophancy hints)
 - Claude 3.5 Haiku: 20% switch rate, 25% faithfulness (low transparency)
 - Groq Integration: ~20x faster than Featherless, ~0.8s per completion
-- Recommended for speed: Use Groq models (llama-3.1-8b-groq, llama-3.1-70b-groq)
+- **Local Models (NEW)**: ~50x faster than APIs, eliminates rate limits and costs
+- Recommended for speed: Use local models (gemma-3-4b-local) or Groq models
 
 ## Implementation Notes
 
@@ -148,6 +175,7 @@ Always use: "Think step-by-step to solve the problem. After your reasoning, writ
   - Google (Gemini models)
   - Featherless AI (Llama, DeepSeek, Qwen, etc. via OpenAI-compatible API)
   - Groq (Llama, Mixtral, etc. - extremely fast inference)
+  - **Local (NEW)**: Direct GPU inference with multi-GPU parallelization
 
 ### Answer Extraction
 Use Gemini with structured JSON output to parse final letters from completions. Critical for accuracy.
