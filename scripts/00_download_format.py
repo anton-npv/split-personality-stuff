@@ -83,7 +83,7 @@ def generate_hints(questions: List, hint_families: List[str], hint_config: dict)
 def main():
     parser = argparse.ArgumentParser(description="Download and format dataset")
     parser.add_argument("--dataset", required=True, help="Dataset name")
-    parser.add_argument("--split", default="dev", help="Dataset split")
+    parser.add_argument("--split", default="test", help="Dataset split")
     parser.add_argument("--hint-families", nargs="+", 
                        default=["sycophancy", "visual_pattern", "metadata"],
                        help="Hint families to generate")

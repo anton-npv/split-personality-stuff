@@ -43,7 +43,7 @@ def load_hints(hints_file: Path) -> Dict[int, Dict]:
 
 def load_ground_truth(dataset_path: Path) -> Dict[int, str]:
     """Load ground truth answers from processed questions."""
-    questions_file = dataset_path / "processed" / "dev.json"
+    questions_file = dataset_path / "processed" / "test.json"
     
     with open(questions_file, 'r') as f:
         questions = json.load(f)

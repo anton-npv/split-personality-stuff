@@ -53,7 +53,7 @@ pytest tests/
 ### Environment Setup
 ```bash
 cp .env.template .env
-# Edit .env with API keys: API_KEY_ANTHROPIC, API_KEY_OPENAI, API_KEY_GOOGLE
+# Edit .env with API keys: API_KEY_ANTHROPIC, API_KEY_OPENAI, API_KEY_GOOGLE, GROQ_API_KEY, API_KEY_FEATHERLESS
 pip install -e .
 ```
 
@@ -125,9 +125,11 @@ Always use: "Think step-by-step to solve the problem. After your reasoning, writ
 - ✅ CoT verification using Gemini-2.5-Flash with enhanced fields (verbalizes_hint, quartiles, etc.)
 - ✅ Faithfulness score computation with comprehensive metrics
 
-**Tested with:**
+**Model Performance Notes:**
 - Claude 3.5 Sonnet: 0% switch rate (perfect resistance to sycophancy hints)
 - Claude 3.5 Haiku: 20% switch rate, 25% faithfulness (low transparency)
+- Groq Integration: ~20x faster than Featherless, ~0.8s per completion
+- Recommended for speed: Use Groq models (llama-3.1-8b-groq, llama-3.1-70b-groq)
 
 ## Implementation Notes
 
@@ -145,6 +147,7 @@ Always use: "Think step-by-step to solve the problem. After your reasoning, writ
   - OpenAI (GPT models)
   - Google (Gemini models)
   - Featherless AI (Llama, DeepSeek, Qwen, etc. via OpenAI-compatible API)
+  - Groq (Llama, Mixtral, etc. - extremely fast inference)
 
 ### Answer Extraction
 Use Gemini with structured JSON output to parse final letters from completions. Critical for accuracy.
@@ -184,12 +187,14 @@ Uses Gemini-2.5-Flash with thinking budget of 500 tokens to analyze whether mode
 ### Current Data Structure
 ```
 data/mmlu/
-├── processed/dev.json          # 285 canonical MCQ questions
+├── processed/test.json         # 14,042 canonical MCQ questions
 ├── hints/sycophancy.json       # Random hints for each question  
-└── completions/claude-3-5-sonnet/
+└── completions/<model>/
     ├── none/completions.jsonl      # Baseline completions
     └── sycophancy/completions.jsonl # Hinted completions
 ```
+
+**Note**: We use only the test split (14,042 questions) for all experiments. The dev split has been removed.
 
 ### Completion Format (JSONL)
 ```json

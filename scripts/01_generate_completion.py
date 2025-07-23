@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Any
 from dotenv import load_dotenv
@@ -114,7 +115,7 @@ async def main():
     parser.add_argument("--dataset", required=True, help="Dataset name")
     parser.add_argument("--model", required=True, help="Model name from configs/models.yaml")
     parser.add_argument("--hint", required=True, help="Hint type ('none' for baseline, or hint family)")
-    parser.add_argument("--split", default="dev", help="Dataset split")
+    parser.add_argument("--split", default="test", help="Dataset split")
     parser.add_argument("--resume", action="store_true", help="Resume from existing completions file")
     parser.add_argument("--max-questions", type=int, help="Limit number of questions for testing")
     
@@ -156,11 +157,16 @@ async def main():
     
     # Create LLM client
     logger.info(f"Creating {args.model} client")
+    
+    # Get defaults from environment variables
+    default_temp = float(os.getenv("DEFAULT_TEMPERATURE", "0"))
+    default_max_tokens = int(os.getenv("DEFAULT_MAX_TOKENS", "2048"))
+    
     client = create_client(
         provider=model_cfg["provider"],
         model_id=model_cfg["model_id"],
-        temperature=model_cfg.get("temperature", 0),
-        max_tokens=model_cfg.get("max_tokens", 4096)
+        temperature=model_cfg.get("temperature", default_temp),
+        max_tokens=model_cfg.get("max_tokens", default_max_tokens)
     )
     
     # Set output path

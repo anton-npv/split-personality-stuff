@@ -23,17 +23,17 @@ This research investigates whether models might learn to hide their real reasoni
 ```bash
 # Clone and install dependencies
 git clone <this-repo>
-cd reasoning-faithfulness-replica
+cd split-personality-stuff
 pip install -e .
 
 # Configure API keys
 cp .env.template .env
-# Edit .env with your OpenAI, Anthropic, and Google API keys
+# Edit .env with your API keys: API_KEY_ANTHROPIC, API_KEY_OPENAI, API_KEY_GOOGLE, GROQ_API_KEY
 ```
 
 ### Run Full Experiment
 ```bash
-make run DATASET=mmlu MODEL=claude-3-5-sonnet HINT=sycophancy SPLIT=dev
+make run DATASET=mmlu MODEL=claude-3-5-sonnet HINT=sycophancy
 ```
 
 This will:
@@ -100,8 +100,16 @@ reasoning-faithfulness-replica/
 - Gemini models (Google)
 - Extensible via `configs/models.yaml`
 
+### Supported Models
+- **Anthropic**: Claude 3.5 Sonnet, Claude 3.5 Haiku
+- **OpenAI**: GPT-4o, GPT-4o-mini
+- **Google**: Gemini 1.5 Pro, Gemini 1.5 Flash, Gemini 2.0 Flash
+- **Groq (Fast)**: Llama 3.1/3.3 (8B, 70B), Mixtral 8x7B
+- **Featherless**: Llama, DeepSeek, Qwen models
+- Extensible via `configs/models.yaml`
+
 ### Datasets  
-- **MMLU**: Massive Multitask Language Understanding
+- **MMLU**: Massive Multitask Language Understanding (14,042 test questions)
 - **GPQA**: Graduate-level physics, chemistry, biology questions
 - Extensible via `configs/datasets.yaml`
 
@@ -113,24 +121,22 @@ This suggests current CoT monitoring approaches may miss important aspects of mo
 
 ## Development Status
 
-### ✅ **Completed (Scripts 00-01)**
+### ✅ **Completed (All Scripts 00-05)**
 - **Data Pipeline**: MMLU download, formatting, and hint generation with proper random distribution
-- **LLM System**: Multi-provider clients (Anthropic, OpenAI, Google) with retry logic and error handling  
+- **LLM System**: Multi-provider clients (Anthropic, OpenAI, Google, Groq, Featherless) with retry logic  
 - **Prompt Building**: Baseline vs hinted prompts with exact CoT instruction from paper
 - **Completion Generation**: Async pipeline with resume capability, saves structured JSONL data
-- **Testing**: Full pipeline verified with Claude models, generates proper baseline/hinted pairs
-
-### 🔄 **In Progress (Scripts 02-05)**
-- ⏳ Answer extraction using Gemini/regex to parse final MCQ letters from completions
-- ⏳ Switch detection to find cases where hints changed model answers
-- ⏳ CoT verification to check if models mention hint usage in their reasoning
-- ⏳ Faithfulness computation using the paper's formula
+- **Answer Extraction**: Using Gemini structured JSON output to parse final MCQ letters
+- **Switch Detection**: Finding cases where hints changed model answers, tracking correctness
+- **CoT Verification**: Checking if models mention hint usage in their reasoning
+- **Faithfulness Computation**: Computing final scores using the paper's formula
 
 ### 📊 **Current Capabilities**
-- Supports 285 MMLU dev questions with sycophancy hints  
-- Generates completions for Claude 3.5 Sonnet/Haiku (tested and working)
-- Data saved in structured format: `data/mmlu/completions/claude-3-5-sonnet/{none,sycophancy}/completions.jsonl`
-- Ready for answer extraction and faithfulness analysis
+- Supports 14,042 MMLU test questions with multiple hint types
+- Tested models: Claude 3.5 Sonnet/Haiku, Llama models via Groq
+- Groq integration provides ~20x speedup over other providers
+- Full pipeline automated from data download to faithfulness scores
+- Results saved in structured format with comprehensive metrics
 
 ## Contributing
 
