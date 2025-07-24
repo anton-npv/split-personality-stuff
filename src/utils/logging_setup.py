@@ -23,8 +23,14 @@ def setup_logging(
         log_path.parent.mkdir(parents=True, exist_ok=True)
         handlers.append(logging.FileHandler(log_file))
     
+    # Handle both string level names and integer levels
+    if isinstance(level, str):
+        log_level = getattr(logging, level.upper())
+    else:
+        log_level = level
+    
     logging.basicConfig(
-        level=getattr(logging, level.upper()),
+        level=log_level,
         format=format_string,
         handlers=handlers,
     )

@@ -27,7 +27,8 @@ def get_device():
 def load_model_and_tokenizer(
     model_path: str,
     quantization: Optional[str] = None,
-    device_map: str = "auto"
+    device_map: Optional[str] = None,
+    local_rank: Optional[int] = None
 ) -> Tuple[AutoModelForCausalLM, AutoTokenizer, str, torch.device]:
     """Load model and tokenizer with optimizations."""
     device = get_device()
@@ -51,9 +52,12 @@ def load_model_and_tokenizer(
     # Load model with appropriate settings
     model_kwargs = {
         "torch_dtype": torch.bfloat16,
-        "device_map": device_map,
         "trust_remote_code": True
     }
+    
+    # Only use device_map if explicitly provided
+    if device_map is not None:
+        model_kwargs["device_map"] = device_map
     
     if quantization_config:
         model_kwargs["quantization_config"] = quantization_config
@@ -124,8 +128,14 @@ def generate_completion_batch(
             if "messages" in prompt_dict:
                 conversations.append(prompt_dict["messages"])
             else:
-                # Convert single prompt to messages format
-                conversations.append([{"role": "user", "content": prompt_dict.get("prompt", "")}])
+                # Handle legacy prompt field
+                prompt_value = prompt_dict.get("prompt", "")
+                if isinstance(prompt_value, list) and len(prompt_value) > 0 and isinstance(prompt_value[0], dict):
+                    # Prompt is already in messages format
+                    conversations.append(prompt_value)
+                else:
+                    # Convert single prompt string to messages format
+                    conversations.append([{"role": "user", "content": str(prompt_value)}])
             question_ids.append(prompt_dict.get("question_id", i))
         
         logging.info(f"Processing batch {i//batch_size+1}/{(len(prompts)+batch_size-1)//batch_size}")

@@ -32,15 +32,45 @@ python scripts/04_verify_cot.py --dataset mmlu --model claude-3-5-sonnet --hint 
 python scripts/05_compute_faithfulness.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
 ```
 
-### Local GPU Models (NEW - Much Faster)
-```bash
-# Step 1: Generate completions (single process)
-python scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint none
-python scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+### Local GPU Models (Parallel Inference) 
+**IMPORTANT: Multi-GPU parallel mode is STRONGLY RECOMMENDED for local models**
 
-# Step 1: Generate completions (multi-GPU parallel - recommended)
-accelerate launch scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint none --parallel --batch-size 32
-accelerate launch scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy --parallel --batch-size 32
+```bash
+# ONE-TIME SETUP: Configure accelerate for multi-GPU
+accelerate config
+# Select: This machine -> Multi-GPU -> Number of GPUs -> NO for all other options -> bf16
+
+# Option 1: Single GPU mode (slower, ~5s per completion)
+python scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint none \
+    --n-questions 100  # Process subset for testing
+
+# Option 2: Multi-GPU parallel mode (RECOMMENDED - 2x+ faster)
+accelerate launch scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint none \
+    --parallel \
+    --batch-size 16  # Adjust based on GPU memory (16-32 recommended)
+    --n-questions 1000  # Or omit for full dataset (14,042 questions)
+
+# Generate hinted completions (multi-GPU)
+accelerate launch scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint sycophancy \
+    --parallel \
+    --batch-size 16
+
+# Resume interrupted runs (saves progress automatically)
+accelerate launch scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint sycophancy \
+    --parallel \
+    --resume
 
 # Steps 2-5: Same as API models
 python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint none
@@ -76,12 +106,36 @@ pytest tests/
 cp .env.template .env
 # Edit .env with API keys: API_KEY_ANTHROPIC, API_KEY_OPENAI, API_KEY_GOOGLE, GROQ_API_KEY, API_KEY_FEATHERLESS
 pip install -e .
-
-# For local GPU models (optional - requires NVIDIA GPU)
-pip install -r requirements-local.txt
-accelerate config  # Configure multi-GPU setup
-huggingface-cli login  # For gated models like Gemma
 ```
+
+### Local GPU Setup (Optional - Requires NVIDIA GPUs)
+```bash
+# Install dependencies
+pip install -r requirements-local.txt
+
+# Configure accelerate for multi-GPU (REQUIRED for parallel mode)
+accelerate config
+# Recommended settings:
+# - Compute environment: This machine
+# - Machine type: Multi-GPU
+# - Number of GPUs: [your GPU count]
+# - Use FP16/BF16: bf16
+# - All other options: NO
+
+# Login to HuggingFace for gated models (e.g., Gemma)
+huggingface-cli login
+# Get token from: https://huggingface.co/settings/tokens
+
+# Test GPU setup
+python -c "import torch; print(f'GPUs available: {torch.cuda.device_count()}')"
+```
+
+**Performance Tips for Local Models:**
+- **ALWAYS use multi-GPU parallel mode** - single GPU is ~10x slower
+- Batch size 16-32 works well for most GPUs (adjust based on memory)
+- Gemma-3-4b requires ~8GB VRAM per GPU
+- Use `--resume` flag to continue interrupted runs
+- Processing full MMLU dataset (14k questions) takes ~4 hours on 2x RTX 3090
 
 **Note:** All scripts automatically load environment variables with `load_dotenv()`. Anthropic models (Claude 3.5 Sonnet/Haiku) are fully tested and working.
 

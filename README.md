@@ -30,11 +30,21 @@ pip install -e .
 cp .env.template .env
 # Edit .env with your API keys: API_KEY_ANTHROPIC, API_KEY_OPENAI, API_KEY_GOOGLE, GROQ_API_KEY
 
-# For local model inference (optional - requires GPU)
+# For local model inference (optional - requires NVIDIA GPUs)
 pip install -r requirements-local.txt
-accelerate config  # Configure multi-GPU setup
+accelerate config  # Configure multi-GPU setup - REQUIRED for parallel mode!
 huggingface-cli login  # For gated models like Gemma
 ```
+
+### Performance Comparison
+| Method | Speed | Cost | Hardware |
+|--------|-------|------|----------|
+| API Models (Claude, GPT) | ~1-2s per completion | $0.001-0.01 per completion | None |
+| Groq API (Llama) | ~0.8s per completion | Free (with limits) | None |
+| Local Single GPU | ~5s per completion | Free | 1x GPU (8GB+) |
+| **Local Multi-GPU (Recommended)** | **~0.5s per completion** | **Free** | **2+ GPUs** |
+
+**💡 TIP: Multi-GPU parallel mode is 10x faster than single GPU!**
 
 ### Run Full Experiment
 
@@ -43,17 +53,41 @@ huggingface-cli login  # For gated models like Gemma
 make run DATASET=mmlu MODEL=claude-3-5-sonnet HINT=sycophancy
 ```
 
-**Local GPU models (faster, requires setup):**
+**Local GPU models (much faster with parallel mode):**
 ```bash
-# Single process mode
-python scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+# IMPORTANT: First configure accelerate for multi-GPU (one-time setup)
+accelerate config
+# Select: This machine -> Multi-GPU -> [your GPU count] -> NO for other options -> bf16
 
-# Multi-GPU parallel mode (much faster!)
-accelerate launch scripts/01_generate_completion_parallel.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy --parallel --batch-size 32
+# Option 1: Multi-GPU parallel mode (STRONGLY RECOMMENDED - 10x faster!)
+accelerate launch scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint none \
+    --parallel \
+    --batch-size 16  # Adjust based on GPU memory
+    --n-questions 1000  # Or omit for full dataset
 
-# Then continue with standard pipeline
+# Generate hinted completions
+accelerate launch scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint sycophancy \
+    --parallel \
+    --batch-size 16
+
+# Option 2: Single GPU mode (much slower, ~5s per completion)
+python scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint none
+
+# Then continue with standard pipeline (steps 2-5)
+python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint none
 python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
-# ... etc
+python scripts/03_detect_switch.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy --baseline none
+python scripts/04_verify_cot.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+python scripts/05_compute_faithfulness.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
 ```
 
 This will:
@@ -133,9 +167,6 @@ reasoning-faithfulness-replica/
 - **Extensible**: Any HuggingFace model via `configs/models.yaml`
 
 **Local Model Benefits:**
-- 🚀 **Much faster**: No API rate limits, direct GPU inference
-- 💰 **Cost-effective**: No per-token charges
-- 🔒 **Private**: Data stays on your hardware
 - ⚡ **Parallelizable**: Multi-GPU support with HuggingFace Accelerate
 
 All models extensible via `configs/models.yaml`

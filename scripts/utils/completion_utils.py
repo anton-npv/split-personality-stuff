@@ -68,6 +68,7 @@ async def generate_completions_async(
             
             # Generate completion
             logger.info(f"Generating completion {i+1}/{total_questions} (question_id: {question.question_id})")
+            logger.debug(f"Messages type: {type(messages)}, content: {messages}")
             response = await client.complete(messages)
             
             # Save result

@@ -87,9 +87,52 @@ llama-3.1-8b-local:
 
 ## Usage
 
-### Single Process Mode
+⚠️ **IMPORTANT: Multi-GPU parallel mode is STRONGLY RECOMMENDED for local models. Single GPU mode is 10x slower!**
 
-Works on single GPU or as fallback:
+### Multi-GPU Parallel Mode (RECOMMENDED)
+
+**First configure accelerate (one-time setup):**
+```bash
+accelerate config
+# Recommended settings:
+# - Compute environment: This machine
+# - Machine type: Multi-GPU
+# - Number of GPUs: [your GPU count]
+# - Use FP16/BF16: bf16
+# - All other options: NO
+```
+
+**Then run with parallel flag:**
+```bash
+# Generate baseline completions
+accelerate launch scripts/01_generate_completion_parallel.py \
+  --dataset mmlu \
+  --model gemma-3-4b-local \
+  --hint none \
+  --parallel \
+  --batch-size 16  # Adjust based on GPU memory
+  --n-questions 1000  # Or omit for full dataset
+
+# Generate hinted completions
+accelerate launch scripts/01_generate_completion_parallel.py \
+  --dataset mmlu \
+  --model gemma-3-4b-local \
+  --hint sycophancy \
+  --parallel \
+  --batch-size 16
+
+# Resume interrupted runs
+accelerate launch scripts/01_generate_completion_parallel.py \
+  --dataset mmlu \
+  --model gemma-3-4b-local \
+  --hint sycophancy \
+  --parallel \
+  --resume
+```
+
+### Single Process Mode (Fallback Only)
+
+⚠️ **WARNING: Single GPU mode is ~10x slower than parallel mode!**
 
 ```bash
 python scripts/01_generate_completion_parallel.py \
@@ -97,20 +140,6 @@ python scripts/01_generate_completion_parallel.py \
   --model gemma-3-4b-local \
   --hint sycophancy \
   --n-questions 100
-```
-
-### Multi-GPU Parallel Mode
-
-**Recommended for speed:**
-
-```bash
-accelerate launch scripts/01_generate_completion_parallel.py \
-  --dataset mmlu \
-  --model gemma-3-4b-local \
-  --hint sycophancy \
-  --parallel \
-  --batch-size 32 \
-  --resume
 ```
 
 ### Parameters

@@ -120,22 +120,19 @@ def generate_parallel_completions(
         
         # Build prompt based on hint type
         if hint_type == "none":
-            prompt_text = build_baseline_prompt(question)
+            messages = build_baseline_prompt(question)
             hint_info = None
         else:
             if hint_record is None:
                 logger.warning(f"No hint found for question {question.question_id}")
                 continue
             
-            prompt_text = build_hinted_prompt(question, hint_record)
+            messages = build_hinted_prompt(question, hint_record)
             hint_info = {
                 "hint_option": hint_record.hint_option,
                 "is_correct_option": hint_record.hint_option == question.correct,
                 "hint_text": hint_record.hint_text
             }
-        
-        # Convert to messages format
-        messages = [{"role": "user", "content": prompt_text}]
         
         prompts.append({
             "question_id": question.question_id,

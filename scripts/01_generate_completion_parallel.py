@@ -22,6 +22,7 @@ Usage:
 """
 
 import argparse
+import json
 import logging
 import os
 import sys
@@ -61,7 +62,12 @@ def main():
     logger = logging.getLogger(__name__)
     
     # Load model configuration
-    model_config = load_model_config(args.model)
+    all_model_configs = load_model_config()
+    if args.model not in all_model_configs:
+        logger.error(f"Model {args.model} not found in configs/models.yaml")
+        return 1
+    
+    model_config = all_model_configs[args.model]
     if model_config["provider"] != "local":
         logger.error(f"Model {args.model} is not a local model (provider: {model_config['provider']})")
         logger.error("Use scripts/01_generate_completion.py for non-local models")
@@ -100,7 +106,8 @@ def run_parallel_completion(args, accelerator, logger):
     from src.local.parallel_pipeline import generate_parallel_completions
     
     # Load model configuration
-    model_config = load_model_config(args.model)
+    all_model_configs = load_model_config()
+    model_config = all_model_configs[args.model]
     
     # Override batch size if specified
     if args.batch_size:
@@ -108,8 +115,22 @@ def run_parallel_completion(args, accelerator, logger):
     
     # Load dataset
     dataset_registry = DatasetRegistry()
-    questions = dataset_registry.load_questions(args.dataset, args.split)
-    hints = dataset_registry.load_hints(args.dataset, args.hint)
+    questions = dataset_registry.load_dataset(args.dataset, args.split)
+    
+    # Load hints if not baseline
+    hints = []
+    if args.hint != "none":
+        from src.utils.paths import get_dataset_path
+        from src.datasets.base import HintRecord
+        hint_file = get_dataset_path(args.dataset, "hints", f"{args.hint}.json")
+        if not hint_file.exists():
+            raise FileNotFoundError(f"Hint file not found: {hint_file}")
+        
+        with open(hint_file, 'r') as f:
+            hint_data = json.load(f)
+            hints = [HintRecord(**h) for h in hint_data]
+        
+        logger.info(f"Loaded {len(hints)} hints for '{args.hint}' family")
     
     # Limit questions if specified
     if args.n_questions:
@@ -120,16 +141,16 @@ def run_parallel_completion(args, accelerator, logger):
         logger.info(f"Loaded {len(questions)} questions and {len(hints)} hints")
     
     # Load model and tokenizer
-    model_path = model_config.get("model_path", model_config["model_id"])
+    model_path = model_config.get("model_path", model_config.get("model_id", args.model))
     quantization = model_config.get("quantization")
     
     if accelerator.is_main_process:
         logger.info(f"Loading model: {model_path}")
     
+    # Don't use device_map with accelerate/DDP
     model, tokenizer, model_name, device = load_model_and_tokenizer(
         model_path=model_path,
-        quantization=quantization,
-        device_map="auto"
+        quantization=quantization
     )
     
     # Prepare model with accelerator
@@ -140,7 +161,7 @@ def run_parallel_completion(args, accelerator, logger):
         logger.info(f"Model loaded on {accelerator.num_processes} GPU(s)")
     
     # Set up output path
-    output_path = get_completion_path(args.dataset, args.model, args.hint)
+    output_path = get_completion_path(args.dataset, args.model, args.hint) / "completions.jsonl"
     
     # Generate completions
     generate_parallel_completions(
@@ -174,17 +195,35 @@ def run_single_process_completion(args, logger):
     logger.info("Using single-process mode")
     
     # Load model configuration and create client
-    model_config = load_model_config(args.model)
+    all_model_configs = load_model_config()
+    model_config = all_model_configs[args.model].copy()
+    
+    # Extract provider to avoid duplication in kwargs
+    provider = model_config.pop("provider")
     client = create_client(
-        provider=model_config["provider"],
+        provider=provider,
         model_id=args.model,
         **model_config
     )
     
     # Load dataset
     dataset_registry = DatasetRegistry()
-    questions = dataset_registry.load_questions(args.dataset, args.split)
-    hints = dataset_registry.load_hints(args.dataset, args.hint)
+    questions = dataset_registry.load_dataset(args.dataset, args.split)
+    
+    # Load hints if not baseline
+    hints = []
+    if args.hint != "none":
+        from src.utils.paths import get_dataset_path
+        from src.datasets.base import HintRecord
+        hint_file = get_dataset_path(args.dataset, "hints", f"{args.hint}.json")
+        if not hint_file.exists():
+            raise FileNotFoundError(f"Hint file not found: {hint_file}")
+        
+        with open(hint_file, 'r') as f:
+            hint_data = json.load(f)
+            hints = [HintRecord(**h) for h in hint_data]
+        
+        logger.info(f"Loaded {len(hints)} hints for '{args.hint}' family")
     
     # Limit questions if specified
     if args.n_questions:
@@ -194,7 +233,7 @@ def run_single_process_completion(args, logger):
     logger.info(f"Loaded {len(questions)} questions and {len(hints)} hints")
     
     # Set up output path
-    output_path = get_completion_path(args.dataset, args.model, args.hint)
+    output_path = get_completion_path(args.dataset, args.model, args.hint) / "completions.jsonl"
     
     # Import and run the standard completion generation
     from scripts.utils.completion_utils import generate_completions_async

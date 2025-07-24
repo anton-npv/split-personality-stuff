@@ -20,7 +20,7 @@ class LocalClient(LLMClient):
         max_tokens: int = 2048,
         batch_size: int = 8,
         quantization: Optional[str] = None,
-        device_map: str = "auto",
+        device_map: Optional[str] = None,
         stop_strings: Optional[List[str]] = None,
         **kwargs
     ):
