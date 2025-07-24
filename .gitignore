@@ -6,6 +6,8 @@
 # Data directory (never commit experimental data)
 data/
 !data/.gitkeep
+# Exception: Allow completions to be tracked with Git LFS
+!data/*/completions/
 
 # Python
 __pycache__/
