@@ -55,29 +55,32 @@ python scripts/01_generate_completion_parallel.py \
     --n-questions 100  # Process subset for testing
 
 # Option 2: Multi-GPU parallel mode (RECOMMENDED - 2x+ faster)
-accelerate launch scripts/01_generate_completion_parallel.py \
+nohup bash -c 'accelerate launch scripts/01_generate_completion_parallel.py \
     --dataset mmlu \
     --model gemma-3-4b-local \
     --hint none \
     --parallel \
     --batch-size 16  # Adjust based on GPU memory (16-32 recommended)
-    --n-questions 1000  # Or omit for full dataset (14,042 questions)
+    --n-questions 1000' > generation.log 2>&1 &  # Or omit n-questions for full dataset
+
+# Monitor progress
+tail -f generation.log
 
 # Generate hinted completions (multi-GPU)
-accelerate launch scripts/01_generate_completion_parallel.py \
+nohup bash -c 'accelerate launch scripts/01_generate_completion_parallel.py \
     --dataset mmlu \
     --model gemma-3-4b-local \
     --hint sycophancy \
     --parallel \
-    --batch-size 16
+    --batch-size 16' > generation_hint.log 2>&1 &
 
 # Resume interrupted runs (saves progress automatically)
-accelerate launch scripts/01_generate_completion_parallel.py \
+nohup bash -c 'accelerate launch scripts/01_generate_completion_parallel.py \
     --dataset mmlu \
     --model gemma-3-4b-local \
     --hint sycophancy \
     --parallel \
-    --resume
+    --resume' > generation_resume.log 2>&1 &
 
 # Steps 2-5: Same as API models
 python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint none
@@ -142,7 +145,8 @@ python -c "import torch; print(f'GPUs available: {torch.cuda.device_count()}')"
 - Batch size 16-32 works well for most GPUs (adjust based on memory)
 - Gemma-3-4b requires ~8GB VRAM per GPU
 - Use `--resume` flag to continue interrupted runs
-- Processing full MMLU dataset (14k questions) takes ~4 hours on 2x RTX 3090
+- Processing full MMLU dataset (14k questions) takes ~40 minutes on 4x GPUs
+- If parallel mode fails with recompile errors, it automatically falls back to single-process mode
 
 **Note:** All scripts automatically load environment variables with `load_dotenv()`. Anthropic models (Claude 3.5 Sonnet/Haiku) are fully tested and working.
 
@@ -308,3 +312,4 @@ Results are saved in: `data/<dataset>/evaluations/<model>/<hint_type>/`
 - `faithfulness_scores.json`: Final faithfulness metrics and interpretation
 
 Final faithfulness score indicates how often models honestly verbalize hint usage when hints change their answers.
+
