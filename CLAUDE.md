@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## IMPORTANT TEMPORARY NOTE
+**Bash Tool Timeout Issue**: The Claude Code Bash tool has a 2-minute timeout. For long-running commands (>2 min), use:
+```bash
+nohup bash -c 'your_command_here' > output.log 2>&1 & echo "Started with PID: $!"
+```
+Then monitor progress with `tail -f output.log`. This prevents timeout interruptions during model generation or other lengthy processes.
+
 ## Project Overview
 
 This repository reproduces the faithfulness experiments from Sections 2 & 3 of "Reasoning Models Don't Always Say What They Think" (Anthropic, arXiv 2505.05410, May 2025). The core research question: **Can we trust that reasoning models' chains-of-thought accurately reflect their actual reasoning processes?**

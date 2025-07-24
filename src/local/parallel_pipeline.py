@@ -141,86 +141,90 @@ def generate_parallel_completions(
             "hint_info": hint_info
         })
     
-    # Generate completions
+    # Generate completions with periodic checkpointing
     logger.info(f"Process {rank}: generating completions for {len(prompts)} prompts")
     
-    # Convert prompts to format expected by generate_completion_batch
-    batch_prompts = []
-    for prompt_data in prompts:
-        batch_prompts.append({
-            "question_id": prompt_data["question_id"],
-            "messages": prompt_data["messages"]
-        })
-    
-    completion_results = generate_completion_batch(
-        model=model,
-        tokenizer=tokenizer,
-        device=device,
-        prompts=batch_prompts,
-        batch_size=batch_size,
-        max_new_tokens=max_new_tokens,
-        temperature=temperature
-    )
-    
-    # Combine completion results with metadata
+    # Process in smaller chunks for checkpointing
+    checkpoint_interval = 100  # Save every 100 completions
     final_results = []
-    for i, completion_result in enumerate(completion_results):
-        original_prompt = prompts[i]
-        
-        final_result = {
-            "question_id": completion_result["question_id"],
-            "hint_type": hint_type,
-            "prompt": original_prompt["messages"],
-            "completion": completion_result["completion"],
-            "model": model_name
-        }
-        
-        if original_prompt["hint_info"]:
-            final_result["hint_info"] = original_prompt["hint_info"]
-        
-        final_results.append(final_result)
     
-    logger.info(f"Process {rank}: generated {len(final_results)} completions")
+    for chunk_start in range(0, len(prompts), checkpoint_interval):
+        chunk_end = min(chunk_start + checkpoint_interval, len(prompts))
+        chunk_prompts = prompts[chunk_start:chunk_end]
+        
+        # Convert prompts to format expected by generate_completion_batch
+        batch_prompts = []
+        for prompt_data in chunk_prompts:
+            batch_prompts.append({
+                "question_id": prompt_data["question_id"],
+                "messages": prompt_data["messages"]
+            })
+        
+        completion_results = generate_completion_batch(
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            prompts=batch_prompts,
+            batch_size=batch_size,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature
+        )
+        
+        # Combine completion results with metadata
+        for i, completion_result in enumerate(completion_results):
+            original_prompt = chunk_prompts[i]
+            
+            final_result = {
+                "question_id": completion_result["question_id"],
+                "hint_type": hint_type,
+                "prompt": original_prompt["messages"],
+                "completion": completion_result["completion"],
+                "model": model_name
+            }
+            
+            if original_prompt["hint_info"]:
+                final_result["hint_info"] = original_prompt["hint_info"]
+            
+            final_results.append(final_result)
+        
+        # Checkpoint: gather and save current results
+        if (chunk_end % checkpoint_interval == 0 or chunk_end == len(prompts)) and len(final_results) > 0:
+            accelerator.wait_for_everyone()
+            gathered_chunk = gather_object(final_results)
+            
+            if accelerator.is_main_process:
+                # Flatten chunk results
+                chunk_to_save = []
+                for process_results in gathered_chunk:
+                    if isinstance(process_results, list):
+                        chunk_to_save.extend(process_results)
+                    else:
+                        chunk_to_save.append(process_results)
+                
+                # Append to output file
+                with output_path.open("a") as f:
+                    for result in chunk_to_save:
+                        f.write(json.dumps(result) + "\n")
+                
+                logger.info(f"Checkpoint: saved {len(chunk_to_save)} completions (total processed: {chunk_end * world_size})")
+            
+            # Clear results for next chunk
+            final_results = []
+            accelerator.wait_for_everyone()
     
-    # Gather results from all processes
+    logger.info(f"Process {rank}: generated all completions")
+    
+    # Final synchronization
     accelerator.wait_for_everyone()
-    gathered_results = gather_object(final_results)
     
-    # Save results (only main process)
     if accelerator.is_main_process:
-        # Flatten results from all processes
-        all_results = []
-        for process_results in gathered_results:
-            if isinstance(process_results, list):
-                all_results.extend(process_results)
-            else:
-                all_results.append(process_results)
-        
-        # Sort by question_id for consistency
-        all_results.sort(key=lambda x: x["question_id"])
-        
-        # If resuming, merge with existing results
-        if resume and output_path.exists():
-            existing_results = []
+        # Count total completions saved
+        total_saved = 0
+        if output_path.exists():
             with output_path.open("r") as f:
-                for line in f:
-                    if line.strip():
-                        try:
-                            existing_results.append(json.loads(line))
-                        except:
-                            continue
-            
-            # Combine and deduplicate
-            combined = {r["question_id"]: r for r in existing_results}
-            for result in all_results:
-                combined[result["question_id"]] = result
-            
-            all_results = list(combined.values())
-            all_results.sort(key=lambda x: x["question_id"])
-        
-        save_results(all_results, output_path, "", hint_type, model_name)
+                total_saved = sum(1 for line in f if line.strip())
         
         elapsed = time.time() - start_time
         logger.info(f"Parallel completion finished in {elapsed:.2f}s")
-        logger.info(f"Total completions: {len(all_results)}")
-        logger.info(f"Throughput: {len(all_results)/elapsed:.2f} completions/sec")
+        logger.info(f"Total completions: {total_saved}")
+        logger.info(f"Throughput: {total_saved/elapsed:.2f} completions/sec")
