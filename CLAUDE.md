@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## IMPORTANT TEMPORARY NOTE
+**Bash Tool Timeout Issue**: The Claude Code Bash tool has a 2-minute timeout. For long-running commands (>2 min), use:
+```bash
+nohup bash -c 'your_command_here' > output.log 2>&1 & echo "Started with PID: $!"
+```
+Then monitor progress with `tail -f output.log`. This prevents timeout interruptions during model generation or other lengthy processes.
+
 ## Project Overview
 
 This repository reproduces the faithfulness experiments from Sections 2 & 3 of "Reasoning Models Don't Always Say What They Think" (Anthropic, arXiv 2505.05410, May 2025). The core research question: **Can we trust that reasoning models' chains-of-thought accurately reflect their actual reasoning processes?**
@@ -20,9 +27,9 @@ The experiment works by:
 make run DATASET=mmlu MODEL=claude-3-5-sonnet HINT=sycophancy SPLIT=dev
 ```
 
-### Individual Pipeline Steps
+### Individual Pipeline Steps (API Models)
 ```bash
-python scripts/00_download_format.py --dataset mmlu --split dev
+python scripts/00_download_format.py --dataset mmlu --split test
 python scripts/01_generate_completion.py --dataset mmlu --model claude-3-5-sonnet --hint none
 python scripts/01_generate_completion.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
 python scripts/02_extract_answer.py --dataset mmlu --model claude-3-5-sonnet --hint none
@@ -30,6 +37,57 @@ python scripts/02_extract_answer.py --dataset mmlu --model claude-3-5-sonnet --h
 python scripts/03_detect_switch.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy --baseline none
 python scripts/04_verify_cot.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
 python scripts/05_compute_faithfulness.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
+```
+
+### Local GPU Models (Parallel Inference) 
+**IMPORTANT: Multi-GPU parallel mode is STRONGLY RECOMMENDED for local models**
+
+```bash
+# ONE-TIME SETUP: Configure accelerate for multi-GPU
+accelerate config
+# Select: This machine -> Multi-GPU -> Number of GPUs -> NO for all other options -> bf16
+
+# Option 1: Single GPU mode (slower, ~5s per completion)
+python scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint none \
+    --n-questions 100  # Process subset for testing
+
+# Option 2: Multi-GPU parallel mode (RECOMMENDED - 2x+ faster)
+nohup bash -c 'accelerate launch scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint none \
+    --parallel \
+    --batch-size 16  # Adjust based on GPU memory (16-32 recommended)
+    --n-questions 1000' > generation.log 2>&1 &  # Or omit n-questions for full dataset
+
+# Monitor progress
+tail -f generation.log
+
+# Generate hinted completions (multi-GPU)
+nohup bash -c 'accelerate launch scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint sycophancy \
+    --parallel \
+    --batch-size 16' > generation_hint.log 2>&1 &
+
+# Resume interrupted runs (saves progress automatically)
+nohup bash -c 'accelerate launch scripts/01_generate_completion_parallel.py \
+    --dataset mmlu \
+    --model gemma-3-4b-local \
+    --hint sycophancy \
+    --parallel \
+    --resume' > generation_resume.log 2>&1 &
+
+# Steps 2-5: Same as API models
+python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint none
+python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+python scripts/03_detect_switch.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy --baseline none
+python scripts/04_verify_cot.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+python scripts/05_compute_faithfulness.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
 ```
 
 ### Testing
@@ -46,6 +104,9 @@ python test_mmlu_completions.py
 # Full pipeline test (3 questions)
 make test
 
+# Test local models
+python test_local_simple.py
+
 # Unit tests
 pytest tests/
 ```
@@ -56,6 +117,36 @@ cp .env.template .env
 # Edit .env with API keys: API_KEY_ANTHROPIC, API_KEY_OPENAI, API_KEY_GOOGLE, GROQ_API_KEY, API_KEY_FEATHERLESS
 pip install -e .
 ```
+
+### Local GPU Setup (Optional - Requires NVIDIA GPUs)
+```bash
+# Install dependencies
+pip install -r requirements-local.txt
+
+# Configure accelerate for multi-GPU (REQUIRED for parallel mode)
+accelerate config
+# Recommended settings:
+# - Compute environment: This machine
+# - Machine type: Multi-GPU
+# - Number of GPUs: [your GPU count]
+# - Use FP16/BF16: bf16
+# - All other options: NO
+
+# Login to HuggingFace for gated models (e.g., Gemma)
+huggingface-cli login
+# Get token from: https://huggingface.co/settings/tokens
+
+# Test GPU setup
+python -c "import torch; print(f'GPUs available: {torch.cuda.device_count()}')"
+```
+
+**Performance Tips for Local Models:**
+- **ALWAYS use multi-GPU parallel mode** - single GPU is ~10x slower
+- Batch size 16-32 works well for most GPUs (adjust based on memory)
+- Gemma-3-4b requires ~8GB VRAM per GPU
+- Use `--resume` flag to continue interrupted runs
+- Processing full MMLU dataset (14k questions) takes ~40 minutes on 4x GPUs
+- If parallel mode fails with recompile errors, it automatically falls back to single-process mode
 
 **Note:** All scripts automatically load environment variables with `load_dotenv()`. Anthropic models (Claude 3.5 Sonnet/Haiku) are fully tested and working.
 
@@ -129,7 +220,8 @@ Always use: "Think step-by-step to solve the problem. After your reasoning, writ
 - Claude 3.5 Sonnet: 0% switch rate (perfect resistance to sycophancy hints)
 - Claude 3.5 Haiku: 20% switch rate, 25% faithfulness (low transparency)
 - Groq Integration: ~20x faster than Featherless, ~0.8s per completion
-- Recommended for speed: Use Groq models (llama-3.1-8b-groq, llama-3.1-70b-groq)
+- **Local Models (NEW)**: ~50x faster than APIs, eliminates rate limits and costs
+- Recommended for speed: Use local models (gemma-3-4b-local) or Groq models
 
 ## Implementation Notes
 
@@ -148,6 +240,7 @@ Always use: "Think step-by-step to solve the problem. After your reasoning, writ
   - Google (Gemini models)
   - Featherless AI (Llama, DeepSeek, Qwen, etc. via OpenAI-compatible API)
   - Groq (Llama, Mixtral, etc. - extremely fast inference)
+  - **Local (NEW)**: Direct GPU inference with multi-GPU parallelization
 
 ### Answer Extraction
 Use Gemini with structured JSON output to parse final letters from completions. Critical for accuracy.
@@ -219,3 +312,4 @@ Results are saved in: `data/<dataset>/evaluations/<model>/<hint_type>/`
 - `faithfulness_scores.json`: Final faithfulness metrics and interpretation
 
 Final faithfulness score indicates how often models honestly verbalize hint usage when hints change their answers.
+

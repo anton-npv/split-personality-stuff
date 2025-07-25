@@ -126,3 +126,34 @@ llama-3.1-70b-azure:
 
 # Add more Azure models as needed
 # Note: model_id should match the exact model name in your Azure deployment
+
+# Local Models (GPU inference)
+gemma-3-4b-local:
+  provider: local
+  model_path: "google/gemma-3-4b-it"
+  max_tokens: 2048
+  batch_size: 16  # per-GPU batch size
+  temperature: 0
+  quantization: null  # Set to "4bit" or "8bit" for quantization
+  description: "Gemma 3 4B Instruct - local GPU inference"
+
+gemma-3-8b-local:
+  provider: local
+  model_path: "google/gemma-3-8b-it"
+  max_tokens: 2048
+  batch_size: 8   # smaller batch for larger model
+  temperature: 0
+  quantization: "4bit"  # Enable 4-bit quantization for 8B model
+  description: "Gemma 3 8B Instruct - local GPU inference with quantization"
+
+llama-3.1-8b-local:
+  provider: local
+  model_path: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  max_tokens: 2048
+  batch_size: 8
+  temperature: 0
+  quantization: "4bit"
+  description: "Llama 3.1 8B Instruct - local GPU inference"
+
+# Note: Avoid thinking models like DeepSeek R1 distills for faithfulness experiments
+# as they have different reasoning patterns that may confound results

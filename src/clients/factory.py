@@ -8,6 +8,7 @@ from .google_client import GoogleClient
 from .featherless_client import FeatherlessClient
 from .groq_client import GroqClient
 from .azure_client import AzureClient
+from .local_client import LocalClient
 
 
 def create_client(provider: str, model_id: str, **config) -> LLMClient:
@@ -20,6 +21,7 @@ def create_client(provider: str, model_id: str, **config) -> LLMClient:
         "featherless": FeatherlessClient,
         "groq": GroqClient,
         "azure": AzureClient,
+        "local": LocalClient,
     }
     
     if provider not in provider_map:
@@ -31,4 +33,10 @@ def create_client(provider: str, model_id: str, **config) -> LLMClient:
     client_config = {k: v for k, v in config.items() 
                      if k not in ["provider", "description"]}
     
-    return client_class(model_id=model_id, **client_config)
+    # Handle different parameter names for different providers
+    if provider == "local":
+        # Local client uses model_path instead of model_id
+        client_config["model_path"] = client_config.pop("model_path", model_id)
+        return client_class(**client_config)
+    else:
+        return client_class(model_id=model_id, **client_config)

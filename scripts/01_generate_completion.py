@@ -121,8 +121,14 @@ async def main():
     
     args = parser.parse_args()
     
-    setup_logging()
+    # Setup logging with file output
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"logs/generate_completion_{args.model}_{args.hint}_{timestamp}.log"
+    
+    setup_logging(log_file=log_filename)
     logger = logging.getLogger(__name__)
+    logger.info(f"Logging to: {log_filename}")
     
     # Load configurations
     registry = DatasetRegistry()
