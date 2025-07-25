@@ -8,6 +8,8 @@ data/
 !data/.gitkeep
 # Exception: Allow completions to be tracked with Git LFS
 !data/*/completions/
+# Exception: Allow evaluations to be tracked
+!data/*/evaluations/
 
 # Python
 __pycache__/

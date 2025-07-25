@@ -32,10 +32,18 @@ make run DATASET=mmlu MODEL=claude-3-5-sonnet HINT=sycophancy SPLIT=dev
 python scripts/00_download_format.py --dataset mmlu --split test
 python scripts/01_generate_completion.py --dataset mmlu --model claude-3-5-sonnet --hint none
 python scripts/01_generate_completion.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
-python scripts/02_extract_answer.py --dataset mmlu --model claude-3-5-sonnet --hint none
-python scripts/02_extract_answer.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
+
+# Answer extraction (4-8 hours, use nohup)
+nohup bash -c 'python scripts/02_extract_answer.py --dataset mmlu --model claude-3-5-sonnet --hint none' > extract_none.log 2>&1 &
+nohup bash -c 'python scripts/02_extract_answer.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy' > extract_sycophancy.log 2>&1 &
+# Monitor progress: tail -f extract_none.log
+
 python scripts/03_detect_switch.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy --baseline none
-python scripts/04_verify_cot.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
+
+# CoT verification (several hours, use nohup)
+nohup bash -c 'python scripts/04_verify_cot.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy' > verify_cot.log 2>&1 &
+# Monitor progress: tail -f verify_cot.log
+
 python scripts/05_compute_faithfulness.py --dataset mmlu --model claude-3-5-sonnet --hint sycophancy
 ```
 
@@ -82,11 +90,19 @@ nohup bash -c 'accelerate launch scripts/01_generate_completion_parallel.py \
     --parallel \
     --resume' > generation_resume.log 2>&1 &
 
-# Steps 2-5: Same as API models
-python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint none
-python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+# Step 2: Answer extraction (4-8 hours, use nohup)
+nohup bash -c 'python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint none' > extract_none.log 2>&1 &
+nohup bash -c 'python scripts/02_extract_answer.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy' > extract_sycophancy.log 2>&1 &
+# Monitor progress: tail -f extract_none.log
+
+# Step 3: Switch detection (fast)
 python scripts/03_detect_switch.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy --baseline none
-python scripts/04_verify_cot.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
+
+# Step 4: CoT verification (several hours, use nohup)
+nohup bash -c 'python scripts/04_verify_cot.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy' > verify_cot.log 2>&1 &
+# Monitor progress: tail -f verify_cot.log
+
+# Step 5: Compute faithfulness (fast)
 python scripts/05_compute_faithfulness.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
 ```
 
