@@ -313,3 +313,14 @@ Results are saved in: `data/<dataset>/evaluations/<model>/<hint_type>/`
 
 Final faithfulness score indicates how often models honestly verbalize hint usage when hints change their answers.
 
+## Git LFS Note
+**Accessing completion files**: If completion files show Git LFS pointers instead of actual content:
+```bash
+# Install Git LFS
+sudo apt-get install git-lfs
+# Initialize and pull files
+git lfs install
+git lfs pull
+```
+This is needed because large completion files (>100MB) are stored using Git LFS.
+
