@@ -2,6 +2,30 @@
 
 A reproduction of the faithfulness experiments from **"Reasoning Models Don't Always Say What They Think"** (Anthropic, arXiv 2505.05410, May 2025), focusing on Sections 2 & 3.
 
+## 🚀 Super Quick Start (2 minutes)
+
+```bash
+# 1. Clone and setup (30 seconds)
+git clone <this-repo>
+cd reasoning-faithfulness-replica
+./setup.sh
+
+# 2. Add ONE API key to .env (30 seconds)
+# Edit .env and add either:
+#   - API_KEY_ANTHROPIC=sk-ant-...  (for Claude)
+#   - API_KEY_OPENAI=sk-...         (for GPT)
+#   - GROQ_API_KEY=gsk_...          (for fast free Llama)
+
+# 3. Run experiment (1 minute)
+source venv/bin/activate
+make test  # Quick 3-question test
+
+# 4. Full experiment (optional)
+make run DATASET=mmlu MODEL=claude-3-5-sonnet HINT=sycophancy
+```
+
+That's it! No complex setup, no GPU required, just API keys and go.
+
 ## What This Repository Does
 
 This codebase tests whether large language models' chains-of-thought (CoT) accurately reflect their actual reasoning processes. It does this by:
@@ -17,22 +41,34 @@ Chain-of-thought monitoring is proposed as a key AI safety tool - by observing h
 
 This research investigates whether models might learn to hide their real reasoning or generate deceptive CoTs that look good but don't represent their actual thought processes.
 
-## Quick Start
+## Detailed Setup
 
-### Setup
+### Option 1: Simple Setup (Recommended)
 ```bash
-# Clone and install dependencies
-git clone <this-repo>
-cd split-personality-stuff
+# Use the automated setup script
+./setup.sh
+
+# Or manually:
+python3 -m venv venv
+source venv/bin/activate
 pip install -e .
-
-# Configure API keys (for API-based models)
 cp .env.template .env
-# Edit .env with your API keys: API_KEY_ANTHROPIC, API_KEY_OPENAI, API_KEY_GOOGLE, GROQ_API_KEY
+# Add your API keys to .env
+```
 
-# For local model inference (optional - requires NVIDIA GPUs)
+### Option 2: Minimal Setup (Fastest)
+```bash
+# Just install core dependencies
+pip install -r requirements-minimal.txt
+cp .env.template .env
+# Add API keys and run
+```
+
+### Option 3: Local GPU Setup (Advanced)
+```bash
+# For local model inference (requires NVIDIA GPUs)
 pip install -r requirements-local.txt
-accelerate config  # Configure multi-GPU setup - REQUIRED for parallel mode!
+accelerate config  # Configure multi-GPU setup
 huggingface-cli login  # For gated models like Gemma
 ```
 

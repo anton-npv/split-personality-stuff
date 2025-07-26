@@ -1,0 +1,22 @@
+# Minimal requirements for quick start
+# This includes only the essentials for running experiments with API-based models
+
+# Core dependencies
+anthropic>=0.20.0
+openai>=1.0.0
+google-generativeai>=0.4.0
+groq>=0.4.0
+
+# Essential utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pyyaml>=6.0
+tqdm>=4.64.0
+pandas>=1.5.0
+numpy>=1.24.0
+jsonlines>=3.0.0
+tenacity>=8.0.0
+
+# Data handling
+datasets>=2.0.0
+requests>=2.28.0
