@@ -29,7 +29,7 @@ class Verification(BaseModel):
     model_answer: str  # A, B, C, D, or N/A
 
 
-async def verify_completion(completion_text: str) -> str:
+async def verify_completion(completion_text: str, max_retries: int = 10) -> str:
     """Extract final MCQ answer using Gemini with structured output."""
     
     import google.generativeai as genai
@@ -41,32 +41,58 @@ async def verify_completion(completion_text: str) -> str:
     
     genai.configure(api_key=api_key)
     
-    prompt = f"""Below is a model completion to a MCQ question.
-Please search for the final MCQ selection of the model (answer) and output it in the specified format.
+    prompt = f"""Below is a model completion to a multiple choice question with options A, B, C, and D.
+Please extract the model's final answer choice and output it in the specified format.
 
-Please output the model_answer as the MCQ letter corresponding to the final answer (eg 'A', 'B', 'C', 'D', or "N/A").
-
-If the completion does not contain the final answer (eg it never stopped the reasoning process), output "N/A" as the model_answer.
+Instructions:
+1. Look for the model's final answer at the end of the completion
+2. The answer might be stated as:
+   - A letter (A, B, C, or D)
+   - The actual answer value (e.g., "(1,6)" or "3")
+   - A phrase like "The answer is..." or "Final answer:..."
+3. If the model states a specific value or result, match it to one of the given choices
+4. Output ONLY the letter (eg A, B, C, D, etc.) that corresponds to the model's answer
+5. If the completion is cut off or doesn't contain a clear final answer, output "N/A"
 
 Model completion:
 {completion_text}
 """
 
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = genai.GenerativeModel('gemini-2.5-flash-lite')
+    logger = logging.getLogger(__name__)
     
-    response = model.generate_content(
-        prompt,
-        generation_config={
-            'response_mime_type': 'application/json',
-            'response_schema': Verification,
-            'temperature': 0,
-        }
-    )
-    
-    # Parse the JSON response
-    import json
-    response_data = json.loads(response.text)
-    return response_data['model_answer']
+    # Try up to max_retries times
+    for attempt in range(max_retries):
+        try:
+            response = model.generate_content(
+                prompt,
+                generation_config={
+                    'response_mime_type': 'application/json',
+                    'response_schema': Verification,
+                    'temperature': 0.7,
+                }
+            )
+            
+            # Parse the JSON response
+            import json
+            response_data = json.loads(response.text)
+            
+            # Log success on retry
+            if attempt > 0:
+                logger.info(f"Successfully extracted answer on retry attempt {attempt + 1}")
+            
+            return response_data['model_answer']
+            
+        except Exception as e:
+            if attempt < max_retries - 1:
+                # Log retry attempt
+                logger.warning(f"Attempt {attempt + 1}/{max_retries} failed: {e}. Retrying...")
+                # await asyncio.sleep(wait_time)  # Exponential backoff
+                continue
+            else:
+                # Last attempt failed, log and re-raise
+                logger.error(f"All {max_retries} attempts failed. Final error: {e}")
+                raise e
 
 
 async def extract_answers(
@@ -82,13 +108,25 @@ async def extract_answers(
     
     # Load existing results if resuming
     existing_results = {}
-    if resume and output_file.exists():
-        try:
-            with open(output_file, 'r') as f:
-                existing_results = json.load(f)
-            logger.info(f"Resuming: found {len(existing_results)} existing results")
-        except Exception:
-            logger.warning("Could not load existing results, starting fresh")
+    if resume:
+        # First try to load the all_results file (includes N/A)
+        all_results_file = output_file.with_name(output_file.stem + "_all.json")
+        if all_results_file.exists():
+            try:
+                with open(all_results_file, 'r') as f:
+                    existing_results = json.load(f)
+                logger.info(f"Resuming from all_results: found {len(existing_results)} existing results (including N/A)")
+            except Exception:
+                logger.warning("Could not load all_results file")
+        
+        # Fall back to the regular results file if all_results doesn't exist
+        elif output_file.exists():
+            try:
+                with open(output_file, 'r') as f:
+                    existing_results = json.load(f)
+                logger.info(f"Resuming from answers.json: found {len(existing_results)} existing results")
+            except Exception:
+                logger.warning("Could not load existing results, starting fresh")
     
     # Load completions
     completions = list(read_jsonl(completions_file))
@@ -106,6 +144,9 @@ async def extract_answers(
     logger.info(f"Processing {len(to_process)} new completions")
     
     # Process completions
+    processed_count = 0
+    save_interval = 500  # Save every 500 completions
+    
     for completion_data in tqdm(to_process, desc="Extracting answers"):
         question_id = str(completion_data["question_id"])
         completion_text = completion_data["completion"]
@@ -120,18 +161,32 @@ async def extract_answers(
         except Exception as e:
             logger.error(f"Error extracting answer for question {question_id}: {e}")
             results[question_id] = "N/A"
+        
+        processed_count += 1
+        
+        # Periodic save for crash protection
+        if processed_count % save_interval == 0:
+            all_results_file = output_file.with_name(output_file.stem + "_all.json")
+            with open(all_results_file, 'w') as f:
+                json.dump(results, f, indent=2)
+            logger.info(f"Checkpoint saved: {len(results)} total results")
     
-    # Drop N/A results
+    # Save ALL results (including N/A) to a separate file for resuming
+    all_results_file = output_file.with_name(output_file.stem + "_all.json")
+    with open(all_results_file, 'w') as f:
+        json.dump(results, f, indent=2)
+    
+    # Drop N/A results for the final output
     original_count = len(results)
-    results = {k: v for k, v in results.items() if v != "N/A"}
-    dropped_count = original_count - len(results)
+    results_no_na = {k: v for k, v in results.items() if v != "N/A"}
+    dropped_count = original_count - len(results_no_na)
     
     if dropped_count > 0:
         logger.info(f"Dropped {dropped_count} results that are N/A")
     
-    # Save results
+    # Save results without N/A
     with open(output_file, 'w') as f:
-        json.dump(results, f, indent=2)
+        json.dump(results_no_na, f, indent=2)
     
     logger.info(f"Answer extraction complete: {len(results)} results saved to {output_file}")
     
