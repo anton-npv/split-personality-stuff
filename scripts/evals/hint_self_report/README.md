@@ -18,18 +18,18 @@ The pipeline consists of three sequential steps:
 
 ## Prerequisites
 
-Before running this evaluation, you must have completed the main pipeline:
+Before running this evaluation, you must have completed the main pipeline and make sure the data has been formatted to export format; to create export data:
 
 ```bash
-# 1. Download and format dataset
-python scripts/00_download_format.py --dataset mmlu --split test
-
-# 2. Generate completions (if not already done)
-# ... (steps 01-05 from main pipeline)
-
-# 3. Export switched data
+# Create switched data
 python scripts/utils/export_switched_data.py --dataset mmlu --model gemma-3-4b-local --hint sycophancy
 ```
+
+### Common Issues:
+- **FileNotFoundError for hints**: Hints are embedded in completions, not separate files
+- **Empty model responses**: Ensure you're using chat templates with `tokenizer.apply_chat_template`
+- **CUDA out of memory**: Reduce batch_size in config.yaml
+- **Accelerate issues**: Don't use `device_map="auto"` with accelerate
 
 ## Configuration
 
@@ -42,6 +42,31 @@ Edit `config.yaml` to set:
 
 ## Usage
 
+### Quick Start - Run Complete Pipeline
+
+```bash
+# Option 1: Use the convenience script (recommended)
+cd /home/ubuntu/split-personality-stuff
+bash scripts/evals/hint_self_report/run_pipeline.sh --parallel
+
+# Option 2: Run individual steps (see below)
+```
+
+### Testing the Pipeline
+
+To test with a small sample before running on full data:
+
+```bash
+# 1. Create sample data (20 questions)
+python scripts/evals/hint_self_report/create_sample_data.py
+
+# 2. Use test config
+cp scripts/evals/hint_self_report/config_test.yaml scripts/evals/hint_self_report/config.yaml
+
+# 3. Run pipeline
+bash scripts/evals/hint_self_report/run_pipeline.sh --parallel
+```
+
 ### Step 1: Generate Follow-up Responses
 
 **Single GPU:**
@@ -53,15 +78,14 @@ python scripts/evals/hint_self_report/01_generate_followup_responses.py
 ```bash
 # First configure accelerate (one-time setup)
 accelerate config
+# Select: This machine -> Multi-GPU -> [number of GPUs] -> NO for all other options -> bf16
 
 # Run with parallelization
 nohup bash -c 'accelerate launch scripts/evals/hint_self_report/01_generate_followup_responses.py --parallel' > followup_generation.log 2>&1 &
 
-# Monitor progress
-tail -f followup_generation.log
 
 # Resume if interrupted
-accelerate launch scripts/evals/hint_self_report/01_generate_followup_responses.py --parallel --resume
+nohup accelerate launch scripts/evals/hint_self_report/01_generate_followup_responses.py --parallel --resume
 ```
 
 This creates extended conversations with the model's response to the hint usage question.
@@ -69,17 +93,16 @@ This creates extended conversations with the model's response to the hint usage 
 ### Step 2: Extract Model Claims
 
 ```bash
-python scripts/evals/hint_self_report/02_extract_model_claims.py
+nohup python scripts/evals/hint_self_report/02_extract_model_claims.py
 
 # Resume if interrupted
-python scripts/evals/hint_self_report/02_extract_model_claims.py --resume
+nohup python scripts/evals/hint_self_report/02_extract_model_claims.py --resume
 ```
 
 This uses Gemini to classify each response into:
 - **used_hint**: Model claims it used the hint
 - **no_hint**: Model claims it didn't use the hint
-- **unclear**: Ambiguous or contradictory response
-- **no_response**: No meaningful response provided
+- **unclear**: Ambiguous, contradictory, or no meaningful response
 
 ### Step 3: Compute Self-Report Accuracy
 
@@ -156,8 +179,11 @@ Modify `config.yaml`:
 
 1. **CUDA out of memory**: Reduce batch_size in config.yaml
 2. **Gemini API errors**: Check API_KEY_GOOGLE in .env file
-3. **Missing data**: Ensure main pipeline completed successfully
+3. **Missing data**: Ensure main pipeline completed successfully (all 6 steps)
 4. **Slow generation**: Use multi-GPU parallel mode with accelerate
+5. **Empty model responses**: Check that you're using the fixed version of 01_generate_followup_responses.py with proper chat templates
+6. **FileNotFoundError for export**: Make sure you've run export_switched_data.py first
+7. **Accelerate errors**: Ensure accelerate is configured (`accelerate config`) and don't use device_map="auto"
 
 ## Implementation Notes
 
