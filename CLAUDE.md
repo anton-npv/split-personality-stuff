@@ -20,6 +20,13 @@ The experiment works by:
 3. Checking if models verbalize relying on hints when they use them
 4. Computing faithfulness as the percentage of honest hint usage
 
+## IMPORTANT: Data Prerequisites
+**Before running any analysis or export scripts**, you must first download and format the respective dataset eg (for mmlu):
+```bash
+python scripts/00_download_format.py --dataset mmlu --split test
+```
+This creates the necessary `data/mmlu/processed/test.json` file and generates hint files. Without this step, subsequent scripts will fail with missing file errors.
+
 ## Commands
 
 ### Running Full Pipeline
