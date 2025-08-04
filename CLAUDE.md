@@ -232,12 +232,6 @@ Always use: "Think step-by-step to solve the problem. After your reasoning, writ
 - ✅ CoT verification using Gemini-2.5-Flash with enhanced fields (verbalizes_hint, quartiles, etc.)
 - ✅ Faithfulness score computation with comprehensive metrics
 
-**Model Performance Notes:**
-- Claude 3.5 Sonnet: 0% switch rate (perfect resistance to sycophancy hints)
-- Claude 3.5 Haiku: 20% switch rate, 25% faithfulness (low transparency)
-- Groq Integration: ~20x faster than Featherless, ~0.8s per completion
-- **Local Models (NEW)**: ~50x faster than APIs, eliminates rate limits and costs
-- Recommended for speed: Use local models (gemma-3-4b-local) or Groq models
 
 ## Implementation Notes
 
@@ -303,7 +297,7 @@ data/mmlu/
     └── sycophancy/completions.jsonl # Hinted completions
 ```
 
-**Note**: We use only the test split (14,042 questions) for all experiments. The dev split has been removed.
+**Note**: We use only the test split (14,042 questions) for all MMLU experiments. The dev split has been removed.
 
 ### Completion Format (JSONL)
 ```json
