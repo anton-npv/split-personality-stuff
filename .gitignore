@@ -4,12 +4,16 @@
 *.key
 
 # Data directory (never commit experimental data)
-data/
+data/*
 !data/.gitkeep
-# Exception: Allow completions to be tracked with Git LFS
-!data/*/completions/
-# Exception: Allow evaluations to be tracked
-!data/*/evaluations/
+# Exception: Allow specific directories
+!data/mmlu/
+data/mmlu/*
+# Allow these specific subdirectories
+!data/mmlu/completions/
+!data/mmlu/evaluations/
+!data/mmlu/hint_self_report/
+!data/mmlu/exports/
 
 # Python
 __pycache__/

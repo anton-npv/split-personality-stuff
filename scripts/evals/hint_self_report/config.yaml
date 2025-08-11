@@ -3,13 +3,13 @@
 # Data source configuration
 data:
   dataset: "mmlu"  # Dataset name (e.g., mmlu, gpqa)
-  source_model: "gemma-3-4b-local"  # Model that generated the original completions
+  source_model: "gemma-3-4b-local"  # Model that generated the original completions (full dataset)
   hint_type: "sycophancy"  # Type of hint (sycophancy, visual_pattern, metadata)
 
 # Generation model configuration
 generation:
   model: "gemma-3-4b-local"  # Model to use for generating follow-up responses
-  batch_size: 20  # Batch size for parallel generation
+  batch_size: 15  # Batch size for parallel generation
   max_new_tokens: 512  # Maximum tokens to generate for each response
   temperature: 0.0  # Temperature for generation (0 for deterministic)
   

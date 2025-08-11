@@ -20,10 +20,10 @@ with open(source_export_dir / "switched_metadata.json", 'r') as f:
 with open(source_export_dir / "switched_conversations.jsonl", 'r') as f:
     conversations = [json.loads(line) for line in f]
 
-# Sample 20 questions
+# Sample 30 questions
 print(f"Total questions available: {len(conversations)}")
-sample_size = min(20, len(conversations))
-random.seed(42)  # For reproducibility
+sample_size = min(30, len(conversations))
+random.seed(123)  # Different seed for new sample
 sampled_indices = random.sample(range(len(conversations)), sample_size)
 
 # Extract sampled data
