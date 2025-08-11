@@ -136,7 +136,11 @@ def generate_responses_batch(
                 "pad_token_id": tokenizer.pad_token_id,
                 "eos_token_id": tokenizer.eos_token_id,
             }
-            outputs = model.generate(**generation_kwargs)
+            # Unwrap model if it's wrapped by accelerator
+            if hasattr(model, 'module'):
+                outputs = model.module.generate(**generation_kwargs)
+            else:
+                outputs = model.generate(**generation_kwargs)
         
         # Decode responses
         for j, (conv, output, messages) in enumerate(zip(batch_conversations, outputs, batch_messages)):
